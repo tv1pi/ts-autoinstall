@@ -1,17 +1,21 @@
 #!/bin/bash
-# Auto-install TeamSpeak 3 via Docker in one command
+# =========================================
+# Auto-install TeamSpeak 3 via Docker
+# =========================================
 
 set -e
 
 echo "=== TeamSpeak 3 Auto Installer ==="
 
-# Проверка запуска от root (sudo)
+# Проверка запуска с root/sudo
 if [ "$EUID" -ne 0 ]; then
   echo "Пожалуйста, запустите с sudo или как root."
   exit 1
 fi
 
+# ----------------------------
 # 1. Установка Docker, если нет
+# ----------------------------
 if ! command -v docker &> /dev/null; then
     echo "Docker не найден. Устанавливаем..."
     apt update
@@ -27,32 +31,41 @@ else
     echo "Docker уже установлен."
 fi
 
-# 2. Создаем папку данных в домашней директории
+# ----------------------------
+# 2. Создаем папку данных TeamSpeak
+# ----------------------------
 TS_VOLUME="$HOME/teamspeak_data"
 mkdir -p $TS_VOLUME
 echo "Данные TeamSpeak будут храниться в: $TS_VOLUME"
 
-# 3. Проверка контейнера
+# ----------------------------
+# 3. Проверка и удаление старого контейнера
+# ----------------------------
 CONTAINER_NAME="teamspeak"
 if [ "$(docker ps -aq -f name=$CONTAINER_NAME)" ]; then
-    echo "Существующий контейнер найден, удаляем..."
+    echo "Старый контейнер найден, удаляем..."
     docker stop $CONTAINER_NAME
     docker rm $CONTAINER_NAME
 fi
 
-# 4. Запуск TeamSpeak через Docker
+# ----------------------------
+# 4. Запуск TeamSpeak через Docker с принятием лицензии
+# ----------------------------
 docker run -d \
   --name=$CONTAINER_NAME \
   -p 9987:9987/udp \
   -p 10011:10011 \
   -p 30033:30033 \
   -v $TS_VOLUME:/var/ts3server \
+  -e TS3SERVER_LICENSE=accept \
   --restart unless-stopped \
   teamspeak
 
 echo "=== TeamSpeak 3 установлен и запущен! ==="
-echo "Проверить контейнер: docker ps"
+echo "Проверить контейнер: docker ps --format 'table {{.Names}}\t{{.Image}}\t{{.Status}}\t{{.Ports}}'"
+echo "Данные находятся в: $TS_VOLUME"
 echo "Порты для подключения:"
 echo "  Клиенты: 9987 UDP"
-echo "  Query (админ): 10011 TCP"
+echo "  Админ (Query): 10011 TCP"
 echo "  Файлы: 30033 TCP"
+echo "Для просмотра админ-ключа: docker logs -f teamspeak"
